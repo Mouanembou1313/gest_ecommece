@@ -1,0 +1,18 @@
+{
+  "name": "premium-affiliate-shop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Site e-commerce premium avec catalogue d'affiliation, frontend React et backend Node/MongoDB.",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace frontend\" \"npm run dev --workspace backend\"",
+    "install:all": "npm install --workspaces",
+    "seed": "npm run seed --workspace backend"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
