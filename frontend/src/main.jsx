@@ -538,7 +538,7 @@ function App() {
           <section className="hero" id="top">
             <div className="hero-media" aria-hidden="true">
               <img
-                src="/images/Publications/Gemini_Generated_Image_4w94714w94714w94.png"
+                src="/images/banniere.png"
                 alt=""
                 fetchPriority="high"
               />
