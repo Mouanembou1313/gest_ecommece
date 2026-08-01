@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "seed": "node src/seed/products.js"
+    "seed": "node src/seed/products.js",
+    "migrate:atlas": "node src/seed/migrate-to-atlas.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
