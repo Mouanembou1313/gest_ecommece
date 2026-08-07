@@ -12,9 +12,24 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 4000;
+const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+const allowedOrigins = new Set([
+  clientUrl,
+  clientUrl.replace(/\/$/, ""),
+  "http://localhost:5173"
+]);
 
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("Origine non autorisee par CORS."));
+  }
+}));
 app.use(express.json());
 app.use(morgan("dev"));
 
