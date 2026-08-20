@@ -84,3 +84,7 @@ La page publique `Idees de look` fonctionne maintenant comme une galerie premium
 - pieces individuelles achetables par lien d'affiliation.
 
 Pistes de monetisation futures: affiliation sur chaque piece, looks sponsorises, placement de marque, newsletter premium ou guide PDF payant.
+
+mot de passe clustter
+username:veliora_admin
+MotDePasse:k-2_p!z3eGurUQY
