@@ -7,6 +7,7 @@ import {
   Eye,
   Gem,
   Heart,
+  ImageUp,
   LockKeyhole,
   LogOut,
   MessageCircle,
@@ -25,6 +26,8 @@ import { fallbackProducts } from "./data/products";
 import "./styles.css";
 
 const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const cloudinaryCloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "";
+const cloudinaryUploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "";
 
 const emptyProduct = {
   slug: "",
@@ -127,6 +130,8 @@ function App() {
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem("velioraAdminToken") || "");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [loginMessage, setLoginMessage] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadMessage, setImageUploadMessage] = useState("");
 
   async function loadProducts() {
     try {
@@ -378,6 +383,7 @@ function App() {
     setForm(emptyProduct);
     setEditingId(null);
     setAdminMessage("");
+    setImageUploadMessage("");
   }
 
   function resetLookForm() {
@@ -445,6 +451,44 @@ function App() {
       setAdminMessage(error.message);
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function uploadProductImage(file) {
+    if (!file) {
+      return;
+    }
+
+    if (!cloudinaryCloudName || !cloudinaryUploadPreset) {
+      setImageUploadMessage("Cloudinary n'est pas encore configure sur Netlify.");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setImageUploadMessage("Upload de l'image en cours...");
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+      uploadData.append("upload_preset", cloudinaryUploadPreset);
+      uploadData.append("folder", "maison-veliora/products");
+
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/image/upload`, {
+        method: "POST",
+        body: uploadData
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.secure_url) {
+        throw new Error(data?.error?.message || "Upload Cloudinary impossible.");
+      }
+
+      updateForm("image", data.secure_url);
+      setImageUploadMessage("Image envoyee. L'URL a ete ajoutee au produit.");
+    } catch (error) {
+      setImageUploadMessage(error.message);
+    } finally {
+      setIsUploadingImage(false);
     }
   }
 
@@ -759,10 +803,13 @@ function App() {
               editProduct={editProduct}
               editingId={editingId}
               form={form}
+              imageUploadMessage={imageUploadMessage}
               isSaving={isSaving}
+              isUploadingImage={isUploadingImage}
               products={products}
               resetForm={resetForm}
               saveProduct={saveProduct}
+              uploadProductImage={uploadProductImage}
               updateForm={updateForm}
             />
           ) : (
@@ -889,10 +936,13 @@ function ProductAdmin({
   editProduct,
   editingId,
   form,
+  imageUploadMessage,
   isSaving,
+  isUploadingImage,
   products,
   resetForm,
   saveProduct,
+  uploadProductImage,
   updateForm
 }) {
   return (
@@ -947,6 +997,23 @@ function ProductAdmin({
           Image URL
           <input value={form.image} onChange={(event) => updateForm("image", event.target.value)} required />
         </label>
+
+        <div className="image-upload-field">
+          <label className="image-upload-button">
+            <ImageUp size={18} />
+            <span>{isUploadingImage ? "Upload en cours..." : "Choisir une image"}</span>
+            <input
+              accept="image/*"
+              disabled={isUploadingImage}
+              onChange={(event) => uploadProductImage(event.target.files?.[0])}
+              type="file"
+            />
+          </label>
+          {form.image && (
+            <img className="image-upload-preview" src={form.image} alt="Apercu du produit" />
+          )}
+        </div>
+        {imageUploadMessage && <p className="admin-message">{imageUploadMessage}</p>}
 
         <label>
           Lien d'affiliation

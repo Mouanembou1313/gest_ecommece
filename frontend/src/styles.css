@@ -1007,6 +1007,39 @@ h2 {
   gap: 10px;
 }
 
+.image-upload-field {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+}
+
+.image-upload-button {
+  align-items: center;
+  background: #f5efe5;
+  border: 1px solid rgba(24, 23, 19, 0.1);
+  border-radius: 999px;
+  color: #181713;
+  cursor: pointer;
+  display: flex !important;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+.image-upload-button input {
+  display: none;
+}
+
+.image-upload-preview {
+  aspect-ratio: 1;
+  border: 1px solid rgba(24, 23, 19, 0.12);
+  border-radius: 8px;
+  object-fit: cover;
+  width: 68px;
+}
+
 .form-actions .affiliate-button,
 .secondary-action {
   border: 0;
