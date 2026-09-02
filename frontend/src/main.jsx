@@ -132,6 +132,10 @@ function App() {
   const [loginMessage, setLoginMessage] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageUploadMessage, setImageUploadMessage] = useState("");
+  const [isUploadingLookImage, setIsUploadingLookImage] = useState(false);
+  const [lookImageUploadMessage, setLookImageUploadMessage] = useState("");
+  const [uploadingLookItemIndex, setUploadingLookItemIndex] = useState(null);
+  const [lookItemImageUploadMessage, setLookItemImageUploadMessage] = useState("");
 
   async function loadProducts() {
     try {
@@ -390,6 +394,8 @@ function App() {
     setLookForm(emptyLook);
     setEditingLookId(null);
     setLookMessage("");
+    setLookImageUploadMessage("");
+    setLookItemImageUploadMessage("");
   }
 
   function editProduct(product) {
@@ -423,6 +429,8 @@ function App() {
       items: look.items?.length ? look.items : [{ ...emptyLookItem }]
     });
     setLookMessage("");
+    setLookImageUploadMessage("");
+    setLookItemImageUploadMessage("");
     setAdminTab("looks");
     setView("admin");
   }
@@ -489,6 +497,82 @@ function App() {
       setImageUploadMessage(error.message);
     } finally {
       setIsUploadingImage(false);
+    }
+  }
+
+  async function uploadLookImage(file) {
+    if (!file) {
+      return;
+    }
+
+    if (!cloudinaryCloudName || !cloudinaryUploadPreset) {
+      setLookImageUploadMessage("Cloudinary n'est pas encore configure sur Netlify.");
+      return;
+    }
+
+    setIsUploadingLookImage(true);
+    setLookImageUploadMessage("Upload de l'image du look en cours...");
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+      uploadData.append("upload_preset", cloudinaryUploadPreset);
+      uploadData.append("folder", "maison-veliora/looks");
+
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/image/upload`, {
+        method: "POST",
+        body: uploadData
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.secure_url) {
+        throw new Error(data?.error?.message || "Upload Cloudinary impossible.");
+      }
+
+      updateLookForm("image", data.secure_url);
+      setLookImageUploadMessage("Image envoyee. L'URL a ete ajoutee au look.");
+    } catch (error) {
+      setLookImageUploadMessage(error.message);
+    } finally {
+      setIsUploadingLookImage(false);
+    }
+  }
+
+  async function uploadLookItemImage(index, file) {
+    if (!file) {
+      return;
+    }
+
+    if (!cloudinaryCloudName || !cloudinaryUploadPreset) {
+      setLookItemImageUploadMessage("Cloudinary n'est pas encore configure sur Netlify.");
+      return;
+    }
+
+    setUploadingLookItemIndex(index);
+    setLookItemImageUploadMessage(`Upload de l'image de la piece ${index + 1} en cours...`);
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+      uploadData.append("upload_preset", cloudinaryUploadPreset);
+      uploadData.append("folder", "maison-veliora/look-items");
+
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/image/upload`, {
+        method: "POST",
+        body: uploadData
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.secure_url) {
+        throw new Error(data?.error?.message || "Upload Cloudinary impossible.");
+      }
+
+      updateLookItem(index, "image", data.secure_url);
+      setLookItemImageUploadMessage("Image envoyee. L'URL a ete ajoutee a la piece.");
+    } catch (error) {
+      setLookItemImageUploadMessage(error.message);
+    } finally {
+      setUploadingLookItemIndex(null);
     }
   }
 
@@ -818,13 +902,19 @@ function App() {
               deleteLook={deleteLook}
               editLook={editLook}
               editingLookId={editingLookId}
+              isUploadingLookImage={isUploadingLookImage}
               isSaving={isSaving}
               lookForm={lookForm}
+              lookImageUploadMessage={lookImageUploadMessage}
+              lookItemImageUploadMessage={lookItemImageUploadMessage}
               lookMessage={lookMessage}
               looks={looks}
               removeLookItem={removeLookItem}
               resetLookForm={resetLookForm}
               saveLook={saveLook}
+              uploadingLookItemIndex={uploadingLookItemIndex}
+              uploadLookImage={uploadLookImage}
+              uploadLookItemImage={uploadLookItemImage}
               updateLookForm={updateLookForm}
               updateLookItem={updateLookItem}
             />
@@ -1082,13 +1172,19 @@ function LookAdmin({
   deleteLook,
   editLook,
   editingLookId,
+  isUploadingLookImage,
   isSaving,
   lookForm,
+  lookImageUploadMessage,
+  lookItemImageUploadMessage,
   lookMessage,
   looks,
   removeLookItem,
   resetLookForm,
   saveLook,
+  uploadingLookItemIndex,
+  uploadLookImage,
+  uploadLookItemImage,
   updateLookForm,
   updateLookItem
 }) {
@@ -1119,6 +1215,22 @@ function LookAdmin({
             required
           />
         </label>
+        <div className="image-upload-field">
+          <label className="image-upload-button">
+            <ImageUp size={18} />
+            <span>{isUploadingLookImage ? "Upload en cours..." : "Choisir une image"}</span>
+            <input
+              accept="image/*"
+              disabled={isUploadingLookImage}
+              onChange={(event) => uploadLookImage(event.target.files?.[0])}
+              type="file"
+            />
+          </label>
+          {lookForm.image && (
+            <img className="image-upload-preview" src={lookForm.image} alt="Apercu du look" />
+          )}
+        </div>
+        {lookImageUploadMessage && <p className="admin-message">{lookImageUploadMessage}</p>}
 
         <label>
           Description
@@ -1163,6 +1275,21 @@ function LookAdmin({
                 Image
                 <input value={item.image} onChange={(event) => updateLookItem(index, "image", event.target.value)} required />
               </label>
+              <div className="image-upload-field">
+                <label className="image-upload-button">
+                  <ImageUp size={18} />
+                  <span>{uploadingLookItemIndex === index ? "Upload en cours..." : "Choisir une image"}</span>
+                  <input
+                    accept="image/*"
+                    disabled={uploadingLookItemIndex === index}
+                    onChange={(event) => uploadLookItemImage(index, event.target.files?.[0])}
+                    type="file"
+                  />
+                </label>
+                {item.image && (
+                  <img className="image-upload-preview" src={item.image} alt={`Apercu ${item.name || "piece"}`} />
+                )}
+              </div>
               <label>
                 Lien d'affiliation
                 <input value={item.affiliateUrl} onChange={(event) => updateLookItem(index, "affiliateUrl", event.target.value)} />
@@ -1185,6 +1312,7 @@ function LookAdmin({
           )}
         </div>
 
+        {lookItemImageUploadMessage && <p className="admin-message">{lookItemImageUploadMessage}</p>}
         {lookMessage && <p className="admin-message">{lookMessage}</p>}
       </form>
 
