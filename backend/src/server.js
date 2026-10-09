@@ -7,6 +7,7 @@ import { connectDatabase } from "./config/db.js";
 import authRoutes from "./routes/auth.js";
 import lookRoutes from "./routes/looks.js";
 import productRoutes from "./routes/products.js";
+import statisticsRoutes from "./routes/statistics.js";
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/products", productRoutes);
 app.use("/api/looks", lookRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/statistics", statisticsRoutes);
 
 app.use((error, _req, res, _next) => {
   console.error(error);

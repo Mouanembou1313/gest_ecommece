@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import {
   ArrowUpRight,
   BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
   Edit3,
   Eye,
   Gem,
@@ -22,8 +24,8 @@ import {
   Trash2,
   X
 } from "lucide-react";
-import { fallbackProducts } from "./data/products";
 import "./styles.css";
+import Statistics from "./Statistics";
 
 const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 const cloudinaryCloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "";
@@ -59,48 +61,6 @@ const emptyLook = {
   items: [{ ...emptyLookItem }]
 };
 
-const fallbackLook = {
-  title: "Elegance urbaine",
-  subtitle: "Une silhouette chic, simple a recomposer avec des pieces fortes.",
-  image: "/images/look-semaine.png",
-  description:
-    "Une idee de look inspiree d'une balade mode en ville: veste noire, tee-shirt blanc, jupe fluide, bottines et sac camel.",
-  weekLabel: "Look de la semaine",
-  isActive: true,
-  views: 1240,
-  likes: 328,
-  comments: [
-    { author: "Amina", message: "Le sac camel rend le look vraiment premium." },
-    { author: "Nora", message: "J'adore l'association veste noire et jupe fluide." }
-  ],
-  items: [
-    {
-      name: "Veste noire oversize",
-      category: "Vetement",
-      image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=700&q=85",
-      affiliateUrl: "https://example.com/affiliate/veste-noire"
-    },
-    {
-      name: "T-shirt blanc premium",
-      category: "Essentiel",
-      image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=700&q=85",
-      affiliateUrl: "https://example.com/affiliate/tshirt-blanc"
-    },
-    {
-      name: "Jupe midi noire",
-      category: "Vetement",
-      image: "https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=700&q=85",
-      affiliateUrl: "https://example.com/affiliate/jupe-midi"
-    },
-    {
-      name: "Sac camel structure",
-      category: "Accessoire",
-      image: "https://images.unsplash.com/photo-1594223274512-ad4803739b7c?auto=format&fit=crop&w=700&q=85",
-      affiliateUrl: "https://example.com/affiliate/sac-camel"
-    }
-  ]
-};
-
 function buildSlug(value) {
   return value
     .toLowerCase()
@@ -111,14 +71,18 @@ function buildSlug(value) {
 }
 
 function App() {
-  const [products, setProducts] = useState(fallbackProducts);
-  const [looks, setLooks] = useState([fallbackLook]);
-  const [activeLook, setActiveLook] = useState(fallbackLook);
-  const [selectedLook, setSelectedLook] = useState(fallbackLook);
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState("");
+  const [looks, setLooks] = useState([]);
+  const [activeLook, setActiveLook] = useState(null);
+  const [selectedLook, setSelectedLook] = useState(null);
+  const [looksLoading, setLooksLoading] = useState(true);
+  const [looksError, setLooksError] = useState("");
   const [commentDraft, setCommentDraft] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [search, setSearch] = useState("");
-  const [view, setView] = useState("shop");
+  const [view, setView] = useState(() => window.location.hash === "#admin" ? "admin" : window.location.hash === "#looks" ? "looks" : "shop");
   const [adminTab, setAdminTab] = useState("products");
   const [form, setForm] = useState(emptyProduct);
   const [lookForm, setLookForm] = useState(emptyLook);
@@ -138,8 +102,10 @@ function App() {
   const [lookItemImageUploadMessage, setLookItemImageUploadMessage] = useState("");
 
   async function loadProducts() {
+    setProductsLoading(true);
+    setProductsError("");
     try {
-      const response = await fetch(`${apiUrl}/products`);
+      const response = await fetch(`${apiUrl}/products`, { signal: AbortSignal.timeout(90000) });
 
       if (!response.ok) {
         throw new Error("API indisponible");
@@ -147,19 +113,22 @@ function App() {
 
       const apiProducts = await response.json();
 
-      if (apiProducts.length > 0) {
-        setProducts(apiProducts);
-      }
+      if (!Array.isArray(apiProducts)) throw new Error("Reponse invalide");
+      setProducts(apiProducts);
     } catch {
-      setProducts(fallbackProducts);
+      setProductsError("Impossible de charger les produits pour le moment.");
+    } finally {
+      setProductsLoading(false);
     }
   }
 
   async function loadLooks() {
+    setLooksLoading(true);
+    setLooksError("");
     try {
       const [looksResponse, activeResponse] = await Promise.all([
-        fetch(`${apiUrl}/looks`),
-        fetch(`${apiUrl}/looks/active`)
+        fetch(`${apiUrl}/looks`, { signal: AbortSignal.timeout(90000) }),
+        fetch(`${apiUrl}/looks/active`, { signal: AbortSignal.timeout(90000) })
       ]);
 
       if (!looksResponse.ok) {
@@ -167,14 +136,16 @@ function App() {
       }
 
       const apiLooks = await looksResponse.json();
-      const apiActiveLook = activeResponse.ok ? await activeResponse.json() : apiLooks[0];
+      if (!Array.isArray(apiLooks)) throw new Error("Reponse invalide");
+      if (!activeResponse.ok && activeResponse.status !== 404) throw new Error("Look actif indisponible");
+      const apiActiveLook = activeResponse.ok ? await activeResponse.json() : null;
       setLooks(apiLooks);
-      setActiveLook(apiActiveLook || fallbackLook);
-      setSelectedLook((current) => apiLooks.find((look) => look._id === current?._id) || apiActiveLook || apiLooks[0] || fallbackLook);
+      setActiveLook(apiActiveLook || null);
+      setSelectedLook((current) => apiLooks.find((look) => look._id === current?._id) || apiActiveLook || apiLooks[0] || null);
     } catch {
-      setLooks([fallbackLook]);
-      setActiveLook(fallbackLook);
-      setSelectedLook(fallbackLook);
+      setLooksError("Impossible de charger les looks pour le moment.");
+    } finally {
+      setLooksLoading(false);
     }
   }
 
@@ -182,6 +153,15 @@ function App() {
     loadProducts();
     loadLooks();
   }, []);
+
+  useEffect(() => {
+    if (!import.meta.env.PROD || adminToken || window.location.hash === "#admin" || !["shop", "looks"].includes(view)) return;
+    if (["localhost", "127.0.0.1"].includes(window.location.hostname)) return;
+    fetch(`${apiUrl}/statistics/view`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page: view }), keepalive: true
+    }).catch(() => {});
+  }, [view, adminToken]);
 
   useEffect(() => {
     function syncViewFromHash() {
@@ -206,9 +186,10 @@ function App() {
       .includes(search.toLowerCase());
     return matchesCategory && matchesSearch;
   });
-  const displayedLooks = looks.length > 0 ? looks : [fallbackLook];
+  const displayedLooks = looks;
 
   function getProductHref(product) {
+    if (adminToken) return product.affiliateUrl || "#";
     if (product._id) {
       return `${apiUrl}/products/${product.slug}/redirect`;
     }
@@ -284,7 +265,7 @@ function App() {
   async function openLook(look) {
     setSelectedLook(look);
 
-    if (!look._id) {
+    if (adminToken || !look._id) {
       return;
     }
 
@@ -324,6 +305,7 @@ function App() {
       return;
     }
 
+    if (!selectedLook) return;
     if (!selectedLook._id) {
       setSelectedLook((current) => ({
         ...current,
@@ -655,9 +637,9 @@ function App() {
         <nav aria-label="Navigation principale">
           <button className={view === "shop" ? "nav-active" : ""} onClick={() => goToShopSection("top")}>Boutique</button>
           <button className={view === "looks" ? "nav-active" : ""} onClick={() => setView("looks")}>Idées de look</button>
-          <button className={view === "admin" ? "nav-active" : ""} onClick={() => { setView("admin"); window.history.replaceState(null, "", "#admin"); }}>Admin</button>
           <button onClick={() => goToShopSection("selection")}>Selection</button>
           <button onClick={() => goToShopSection("look-semaine")}>Look</button>
+          <button className={view === "admin" ? "nav-active" : ""} onClick={() => { setView("admin"); window.history.replaceState(null, "", "#admin"); }}>Admin</button>
         </nav>
       </header>
 
@@ -720,6 +702,8 @@ function App() {
             </aside>
 
             <section className="product-grid" aria-label="Produits">
+              <ProductStatus loading={productsLoading} error={productsError} retry={loadProducts}
+                empty={filteredProducts.length === 0} />
               {filteredProducts.map((product) => (
                 <article className="product-card" key={product.slug}>
                   <a href={getProductHref(product)} target="_blank" rel="noreferrer sponsored">
@@ -737,7 +721,7 @@ function App() {
             </section>
           </section>
 
-          <WeeklyLook look={activeLook} />
+          {activeLook && <WeeklyLook look={activeLook} />}
         </>
       )}
 {/* ----------------------------------------------------------------------------------------------- */}
@@ -752,11 +736,15 @@ function App() {
                 Des silhouettes générées et composées comme des moodboards premium, avec les pièces à acheter juste en dessous.
               </p>
             </div>
-            <button className="secondary-action" onClick={() => openLook(displayedLooks[0])}>
+            {displayedLooks.length > 0 && <button className="secondary-action" onClick={() => openLook(displayedLooks[0])}>
               <Sparkles size={18} /> Selection éditoriale
-            </button>
+            </button>}
           </div>
 
+          {looksLoading && <p role="status">Chargement des looks...</p>}
+          {looksError && <div role="alert"><p>{looksError}</p><button className="secondary-action" onClick={loadLooks}>Réessayer</button></div>}
+          {!looksLoading && !looksError && looks.length === 0 && <p>Aucun look disponible pour le moment.</p>}
+          {selectedLook && <>
           <div className="look-gallery-layout">
             <section className="featured-look-panel">
               <img src={selectedLook.image} alt={selectedLook.title} />
@@ -788,8 +776,9 @@ function App() {
               <form className="comment-form" onSubmit={addComment}>
                 <input
                   value={commentDraft}
+                  aria-label="Votre commentaire"
                   onChange={(event) => setCommentDraft(event.target.value)}
-                  placeholder="Ajouter un commentaire"
+                  placeholder="Votre commentaire..."
                 />
                 <button type="submit" aria-label="Envoyer le commentaire">
                   <Send size={18} />
@@ -814,10 +803,11 @@ function App() {
             ))}
           </div>
 
+          </>}
           <div className="lookbook-grid">
             {displayedLooks.map((look) => (
               <article
-                className={`look-card ${selectedLook.title === look.title ? "selected" : ""}`}
+                className={`look-card ${selectedLook?._id === look._id ? "selected" : ""}`}
                 key={look._id || look.title}
               >
                 <img src={look.image} alt={look.title} />
@@ -859,12 +849,12 @@ function App() {
           <div className="admin-header">
             <div>
               <p className="eyebrow">Back-office</p>
-              <h1>{adminTab === "products" ? "Gestion produits" : "Gestion looks"}</h1>
+              <h1>{adminTab === "products" ? "Gestion produits" : adminTab === "looks" ? "Gestion looks" : "Statistiques"}</h1>
             </div>
             <div className="admin-actions">
-              <button className="secondary-action" onClick={adminTab === "products" ? resetForm : resetLookForm}>
+              {adminTab !== "statistics" && <button className="secondary-action" onClick={adminTab === "products" ? resetForm : resetLookForm}>
                 <Plus size={18} /> Nouveau
-              </button>
+              </button>}
               <button className="logout-action" onClick={logoutAdmin}>
                 <LogOut size={18} /> Deconnexion
               </button>
@@ -878,9 +868,12 @@ function App() {
             <button className={adminTab === "looks" ? "active" : ""} onClick={() => setAdminTab("looks")}>
               Idees de look
             </button>
+            <button className={adminTab === "statistics" ? "active" : ""} onClick={() => setAdminTab("statistics")}>
+              Statistiques
+            </button>
           </div>
 
-          {adminTab === "products" ? (
+          {adminTab === "statistics" ? <Statistics apiUrl={apiUrl} token={adminToken} products={products} looks={looks} /> : adminTab === "products" ? (
             <ProductAdmin
               adminMessage={adminMessage}
               deleteProduct={deleteProduct}
@@ -891,6 +884,9 @@ function App() {
               isSaving={isSaving}
               isUploadingImage={isUploadingImage}
               products={products}
+              productsLoading={productsLoading}
+              productsError={productsError}
+              loadProducts={loadProducts}
               resetForm={resetForm}
               saveProduct={saveProduct}
               uploadProductImage={uploadProductImage}
@@ -1020,6 +1016,58 @@ function WeeklyLook({ look }) {
   );
 }
 
+function ProductStatus({ loading, error, retry, empty }) {
+  if (loading) return <p className="catalog-status" role="status">Chargement des produits...</p>;
+  if (error) return (
+    <div className="catalog-status" role="alert">
+      <p>{error}</p>
+      <button className="secondary-action" type="button" onClick={retry}>Réessayer</button>
+    </div>
+  );
+  return empty ? <p className="catalog-status" role="status">Aucun produit à afficher.</p> : null;
+}
+
+function normalizeSearch(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function usePagination(items) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  useEffect(() => { setPage((current) => Math.min(current, pageCount)); }, [pageCount]);
+  return {
+    items: items.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    total: items.length, page: currentPage, pageSize, pageCount, setPage,
+    setPageSize: (size) => { setPageSize(size); setPage(1); }
+  };
+}
+
+function AdminPagination({ pagination, label }) {
+  const { total, page, pageSize, pageCount, setPage, setPageSize } = pagination;
+  return (
+    <nav className="admin-pagination" aria-label={`Pagination ${label}`}>
+      <label>Lignes par page
+        <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
+          {[10, 25, 50].map((size) => <option key={size} value={size}>{size}</option>)}
+        </select>
+      </label>
+      <span role="status">{total === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} sur {total}</span>
+      <div className="pagination-actions">
+        <button type="button" disabled={page === 1} onClick={() => setPage(page - 1)} aria-label="Page précédente" title="Page précédente"><ChevronLeft size={18} /></button>
+        <label>Page
+          <select value={page} onChange={(event) => setPage(Number(event.target.value))}>
+            {Array.from({ length: pageCount }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}
+          </select>
+          <span>sur {pageCount}</span>
+        </label>
+        <button type="button" disabled={page === pageCount} onClick={() => setPage(page + 1)} aria-label="Page suivante" title="Page suivante"><ChevronRight size={18} /></button>
+      </div>
+    </nav>
+  );
+}
+
 function ProductAdmin({
   adminMessage,
   deleteProduct,
@@ -1030,11 +1078,28 @@ function ProductAdmin({
   isSaving,
   isUploadingImage,
   products,
+  productsLoading,
+  productsError,
+  loadProducts,
   resetForm,
   saveProduct,
   uploadProductImage,
   updateForm
 }) {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
+  const [featured, setFeatured] = useState("");
+  const [sort, setSort] = useState("");
+  const categories = [...new Set(products.map((product) => product.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
+  const filtered = products.filter((product) =>
+    normalizeSearch(`${product.name} ${product.brand} ${product.category}`).includes(normalizeSearch(query)) &&
+    (!category || product.category === category) &&
+    (!featured || Boolean(product.isFeatured) === (featured === "yes"))
+  );
+  if (sort === "name") filtered.sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  if (sort === "clicks") filtered.sort((a, b) => (b.clicks || 0) - (a.clicks || 0));
+  const pagination = usePagination(filtered);
+  function changeFilter(setter, value) { setter(value); pagination.setPage(1); }
   return (
     <div className="admin-layout">
       <form className="admin-form" onSubmit={saveProduct}>
@@ -1139,12 +1204,35 @@ function ProductAdmin({
       </form>
 
       <section className="admin-table" aria-label="Produits admin">
+        <div className="admin-filters">
+          <label className="admin-search">Rechercher un produit
+            <input type="search" value={query} placeholder="Nom, marque, catégorie" onChange={(event) => changeFilter(setQuery, event.target.value)} />
+          </label>
+          <label>Catégorie
+            <select value={category} onChange={(event) => changeFilter(setCategory, event.target.value)}>
+              <option value="">Toutes</option>
+              {categories.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+          <label>Mise en avant
+            <select value={featured} onChange={(event) => changeFilter(setFeatured, event.target.value)}>
+              <option value="">Tous</option><option value="yes">Mis en avant</option><option value="no">Non mis en avant</option>
+            </select>
+          </label>
+          <label>Trier par
+            <select value={sort} onChange={(event) => changeFilter(setSort, event.target.value)}>
+              <option value="">Ordre initial</option><option value="name">Nom A–Z</option><option value="clicks">Les plus cliqués</option>
+            </select>
+          </label>
+          <button type="button" className="secondary-action" onClick={() => { setQuery(""); setCategory(""); setFeatured(""); setSort(""); pagination.setPage(1); }}>Réinitialiser</button>
+        </div>
         <div className="admin-table-head">
-          <strong>{products.length} produits</strong>
+          <strong>{filtered.length} produits sur {products.length}</strong>
           <span>Total clics: {products.reduce((total, product) => total + (product.clicks || 0), 0)}</span>
         </div>
 
-        {products.map((product) => (
+        <ProductStatus loading={productsLoading} error={productsError} retry={loadProducts} empty={filtered.length === 0} />
+        {pagination.items.map((product) => (
           <article className="admin-row" key={product._id || product.slug}>
             <img src={product.image} alt={product.name} />
             <div>
@@ -1162,6 +1250,7 @@ function ProductAdmin({
             </div>
           </article>
         ))}
+        <AdminPagination pagination={pagination} label="produits" />
       </section>
     </div>
   );
@@ -1188,6 +1277,13 @@ function LookAdmin({
   updateLookForm,
   updateLookItem
 }) {
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("");
+  const filtered = looks.filter((look) =>
+    normalizeSearch(`${look.title} ${look.subtitle || ""} ${look.weekLabel || ""}`).includes(normalizeSearch(query)) &&
+    (!status || Boolean(look.isActive) === (status === "active"))
+  );
+  const pagination = usePagination(filtered);
   return (
     <div className="admin-layout">
       <form className="admin-form" onSubmit={saveLook}>
@@ -1317,12 +1413,24 @@ function LookAdmin({
       </form>
 
       <section className="admin-table" aria-label="Looks admin">
+        <div className="admin-filters">
+          <label className="admin-search">Rechercher un look
+            <input type="search" value={query} placeholder="Titre, sous-titre, libellé" onChange={(event) => { setQuery(event.target.value); pagination.setPage(1); }} />
+          </label>
+          <label>Statut
+            <select value={status} onChange={(event) => { setStatus(event.target.value); pagination.setPage(1); }}>
+              <option value="">Tous</option><option value="active">Actif</option><option value="inactive">Inactifs</option>
+            </select>
+          </label>
+          <button type="button" className="secondary-action" onClick={() => { setQuery(""); setStatus(""); pagination.setPage(1); }}>Réinitialiser</button>
+        </div>
         <div className="admin-table-head">
-          <strong>{looks.length} looks</strong>
+          <strong>{filtered.length} looks sur {looks.length}</strong>
           <span>{looks.find((look) => look.isActive)?.title || "Aucun actif"}</span>
         </div>
 
-        {looks.map((look) => (
+        {filtered.length === 0 && <p className="catalog-status">Aucun look à afficher.</p>}
+        {pagination.items.map((look) => (
           <article className="admin-row" key={look._id || look.title}>
             <img src={look.image} alt={look.title} />
             <div>
@@ -1340,6 +1448,7 @@ function LookAdmin({
             </div>
           </article>
         ))}
+        <AdminPagination pagination={pagination} label="looks" />
       </section>
     </div>
   );
